@@ -1,0 +1,7 @@
+{
+  "internal_id": "customer-test-002",
+  "org_id": "org-001",
+  "name": "Test Company",
+  "email": "test@company.com",
+  "plan_code": "pro"
+}
