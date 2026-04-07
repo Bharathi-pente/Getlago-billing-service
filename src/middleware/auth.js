@@ -2,11 +2,11 @@ const logger = require('../utils/logger');
 
 /**
  * Authentication middleware
- * Validates Bearer token for all routes except /health and /webhooks
+ * Validates Bearer token for all routes except /health, /api-docs, and /webhooks
  */
 function auth(req, res, next) {
-  // Skip auth for health check and webhooks
-  if (req.path === '/health' || req.path.startsWith('/api/v1/webhooks')) {
+  // Skip auth for health check, API docs, and webhooks
+  if (req.path === '/health' || req.path.startsWith('/api-docs') || req.path.startsWith('/api/v1/webhooks')) {
     return next();
   }
 

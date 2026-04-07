@@ -8,18 +8,24 @@
     "dev": "nodemon src/app.js",
     "migrate": "node src/db/migrate.js"
   },
-  "keywords": ["billing", "lago", "microservice"],
+  "keywords": [
+    "billing",
+    "lago",
+    "microservice"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "lago-javascript-client": "latest",
-    "pg": "^8.11.3",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-async-errors": "^3.1.1",
+    "lago-javascript-client": "latest",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
-    "express-async-errors": "^3.1.1",
-    "uuid": "^9.0.0"
+    "pg": "^8.11.3",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^9.0.0",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

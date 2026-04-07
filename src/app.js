@@ -2,6 +2,9 @@ require('dotenv').config();
 require('express-async-errors');
 
 const express = require('express');
+const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
 const logger = require('./utils/logger');
 const { migrate } = require('./db/migrate');
 const requestLogger = require('./middleware/requestLogger');
@@ -9,6 +12,9 @@ const auth = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 const routes = require('./routes');
 const { startScheduler } = require('./jobs/retrySyncJobs');
+
+// Load OpenAPI specification
+const swaggerDocument = YAML.load(path.join(__dirname, '..', 'openapi.yaml'));
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -67,10 +73,16 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 6. Mount all API routes
+// 6. Swagger API documentation (no auth required)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Billing Service API Docs',
+}));
+
+// 7. Mount all API routes
 app.use('/api/v1', routes);
 
-// 7. Global error handler (must be last)
+// 8. Global error handler (must be last)
 app.use(errorHandler);
 
 // Start server
@@ -78,6 +90,7 @@ initializeApp().then(() => {
   app.listen(PORT, () => {
     logger.info(`Billing service listening on port ${PORT}`);
     logger.info(`Health check: http://localhost:${PORT}/health`);
+    logger.info(`API docs: http://localhost:${PORT}/api-docs`);
   });
 });
 

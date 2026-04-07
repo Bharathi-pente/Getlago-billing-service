@@ -1,0 +1,1080 @@
+openapi: 3.0.3
+info:
+  title: Billing Service API
+  description: Production-ready billing microservice with Lago integration
+  version: 1.0.0
+  contact:
+    name: Billing Service Team
+    email: admin@example.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Local development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Customers
+    description: Customer management operations
+  - name: Subscriptions
+    description: Subscription management operations
+  - name: Invoices
+    description: Invoice and payment operations
+  - name: Events
+    description: Usage event tracking
+  - name: Credits
+    description: Wallet and credit management
+  - name: Coupons
+    description: Coupon and discount operations
+  - name: Webhooks
+    description: Webhook endpoints for external integrations
+
+paths:
+  /customers:
+    post:
+      tags:
+        - Customers
+      summary: Create a new customer
+      description: Creates a customer in Lago and stores it in the database. Also creates an initial subscription.
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - internal_id
+                - name
+                - email
+                - plan_code
+              properties:
+                internal_id:
+                  type: string
+                  description: Unique customer identifier from your system
+                  example: customer-006
+                org_id:
+                  type: string
+                  description: Optional organization identifier
+                  example: org-123
+                name:
+                  type: string
+                  description: Customer name
+                  example: Bluebird Labs
+                email:
+                  type: string
+                  format: email
+                  description: Customer email address
+                  example: admin@bluebirdlabs.com
+                plan_code:
+                  type: string
+                  description: Initial subscription plan code
+                  example: starter
+                  enum: [starter, pro, enterprise]
+      responses:
+        '201':
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      customer:
+                        $ref: '#/components/schemas/Customer'
+                      subscription:
+                        $ref: '#/components/schemas/Subscription'
+        '202':
+          description: Customer creation queued for sync (Lago temporarily unavailable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Customer creation queued for sync
+                      internal_id:
+                        type: string
+                        example: customer-006
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /customers/{internalId}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer details
+      description: Retrieves customer information from the database and optionally from Lago
+      operationId: getCustomer
+      parameters:
+        - name: internalId
+          in: path
+          required: true
+          description: Customer internal ID
+          schema:
+            type: string
+            example: customer-006
+      responses:
+        '200':
+          description: Customer details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /subscriptions:
+    post:
+      tags:
+        - Subscriptions
+      summary: Create a subscription
+      description: Creates a new subscription for an existing customer
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - internal_customer_id
+                - plan_code
+              properties:
+                internal_customer_id:
+                  type: string
+                  description: Customer internal ID
+                  example: customer-006
+                plan_code:
+                  type: string
+                  description: Subscription plan code
+                  example: pro
+                  enum: [starter, pro, enterprise]
+                billing_time:
+                  type: string
+                  description: Billing time preference
+                  example: anniversary
+                  enum: [anniversary, calendar]
+                  default: anniversary
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /subscriptions/{internalCustomerId}:
+    patch:
+      tags:
+        - Subscriptions
+      summary: Update subscription (upgrade/downgrade)
+      description: Updates an existing subscription plan for a customer
+      operationId: updateSubscription
+      parameters:
+        - name: internalCustomerId
+          in: path
+          required: true
+          description: Customer internal ID
+          schema:
+            type: string
+            example: customer-006
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - plan_code
+              properties:
+                plan_code:
+                  type: string
+                  description: New subscription plan code
+                  example: enterprise
+                  enum: [starter, pro, enterprise]
+      responses:
+        '200':
+          description: Subscription updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invoices:
+    get:
+      tags:
+        - Invoices
+      summary: List invoices
+      description: Retrieves a paginated list of invoices with optional filters
+      operationId: listInvoices
+      parameters:
+        - name: internal_customer_id
+          in: query
+          description: Filter by customer internal ID
+          schema:
+            type: string
+            example: customer-006
+        - name: status
+          in: query
+          description: Filter by invoice status
+          schema:
+            type: string
+            enum: [draft, finalized, paid, failed, pending]
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          description: Results per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Invoices retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invoice'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invoices/{invoiceId}:
+    get:
+      tags:
+        - Invoices
+      summary: Get invoice details
+      description: Retrieves detailed information about a specific invoice
+      operationId: getInvoice
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          description: Lago invoice ID
+          schema:
+            type: string
+            example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Invoice details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Invoice'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invoices/{invoiceId}/retry:
+    post:
+      tags:
+        - Invoices
+      summary: Retry payment for failed invoice
+      description: Retries payment collection for a failed invoice
+      operationId: retryInvoicePayment
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          description: Lago invoice ID
+          schema:
+            type: string
+            example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Payment retry initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Payment retry initiated
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /events:
+    post:
+      tags:
+        - Events
+      summary: Push a single usage event
+      description: Records a usage event for a customer in Lago for metered billing
+      operationId: pushEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - internal_customer_id
+                - event_code
+              properties:
+                internal_customer_id:
+                  type: string
+                  description: Customer internal ID
+                  example: customer-006
+                event_code:
+                  type: string
+                  description: Event type code (matches Lago billable metric)
+                  example: api_call
+                properties:
+                  type: object
+                  description: Event-specific properties
+                  additionalProperties: true
+                  example:
+                    endpoint: /api/v1/data
+                    method: GET
+                    response_time_ms: 150
+      responses:
+        '201':
+          description: Event pushed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      transaction_id:
+                        type: string
+                        example: txn_1234567890
+                      event_code:
+                        type: string
+                        example: api_call
+                      internal_customer_id:
+                        type: string
+                        example: customer-006
+        '202':
+          description: Event queued for sync (Lago temporarily unavailable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Event queued for sync
+                      internal_customer_id:
+                        type: string
+                      event_code:
+                        type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /events/batch:
+    post:
+      tags:
+        - Events
+      summary: Push multiple usage events in batch
+      description: Records multiple usage events for customers in Lago for metered billing
+      operationId: pushEventsBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - events
+              properties:
+                events:
+                  type: array
+                  description: Array of events to push
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - internal_customer_id
+                      - event_code
+                    properties:
+                      internal_customer_id:
+                        type: string
+                        example: customer-006
+                      event_code:
+                        type: string
+                        example: api_call
+                      properties:
+                        type: object
+                        additionalProperties: true
+      responses:
+        '201':
+          description: Batch events pushed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      pushed_count:
+                        type: integer
+                        example: 10
+                      failed_count:
+                        type: integer
+                        example: 0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /credits/topup:
+    post:
+      tags:
+        - Credits
+      summary: Top up customer credits
+      description: Adds credits to a customer's wallet
+      operationId: topupCredits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - internal_customer_id
+                - amount_cents
+              properties:
+                internal_customer_id:
+                  type: string
+                  description: Customer internal ID
+                  example: customer-006
+                amount_cents:
+                  type: integer
+                  description: Credit amount in cents
+                  example: 10000
+                  minimum: 1
+                currency:
+                  type: string
+                  description: Currency code
+                  example: USD
+                  default: USD
+                description:
+                  type: string
+                  description: Transaction description
+                  example: Promotional credits
+      responses:
+        '201':
+          description: Credits topped up successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/WalletTransaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /credits/{internalCustomerId}:
+    get:
+      tags:
+        - Credits
+      summary: Get wallet balance and transaction history
+      description: Retrieves the wallet balance and transaction history for a customer
+      operationId: getWallet
+      parameters:
+        - name: internalCustomerId
+          in: path
+          required: true
+          description: Customer internal ID
+          schema:
+            type: string
+            example: customer-006
+      responses:
+        '200':
+          description: Wallet information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      wallet:
+                        $ref: '#/components/schemas/Wallet'
+                      transactions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WalletTransaction'
+                      meta:
+                        $ref: '#/components/schemas/PaginationMeta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /coupons/apply:
+    post:
+      tags:
+        - Coupons
+      summary: Apply coupon to customer
+      description: Applies a coupon code to a customer's account
+      operationId: applyCoupon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - internal_customer_id
+                - coupon_code
+              properties:
+                internal_customer_id:
+                  type: string
+                  description: Customer internal ID
+                  example: customer-006
+                coupon_code:
+                  type: string
+                  description: Coupon code to apply
+                  example: WELCOME20
+      responses:
+        '201':
+          description: Coupon applied successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/AppliedCoupon'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /coupons/{internalCustomerId}/{couponCode}:
+    delete:
+      tags:
+        - Coupons
+      summary: Remove applied coupon from customer
+      description: Removes a previously applied coupon from a customer's account
+      operationId: removeCoupon
+      parameters:
+        - name: internalCustomerId
+          in: path
+          required: true
+          description: Customer internal ID
+          schema:
+            type: string
+            example: customer-006
+        - name: couponCode
+          in: path
+          required: true
+          description: Coupon code to remove
+          schema:
+            type: string
+            example: WELCOME20
+      responses:
+        '200':
+          description: Coupon removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Coupon removed successfully
+                      coupon_code:
+                        type: string
+                        example: WELCOME20
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /webhooks/lago:
+    post:
+      tags:
+        - Webhooks
+      summary: Handle Lago webhooks
+      description: Receives and processes webhook events from Lago
+      operationId: handleLagoWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                webhook_type:
+                  type: string
+                  description: Type of webhook event
+                  example: invoice.created
+                lago_id:
+                  type: string
+                  description: Lago resource ID
+                  example: 550e8400-e29b-41d4-a716-446655440000
+                object_type:
+                  type: string
+                  description: Type of object
+                  example: invoice
+      responses:
+        '200':
+          description: Webhook received and processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Webhook received
+                  duplicate:
+                    type: boolean
+                    example: false
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: UUID
+      description: API key authentication using Bearer token
+
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Database primary key
+          example: 1
+        internal_id:
+          type: string
+          description: Customer's internal ID
+          example: customer-006
+        lago_id:
+          type: string
+          description: Lago customer ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        org_id:
+          type: string
+          description: Organization ID
+          example: org-123
+          nullable: true
+        email:
+          type: string
+          format: email
+          description: Customer email
+          example: admin@bluebirdlabs.com
+        name:
+          type: string
+          description: Customer name
+          example: Bluebird Labs
+        plan_code:
+          type: string
+          description: Current subscription plan code
+          example: starter
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2026-04-07T10:30:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2026-04-07T10:30:00Z'
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Database primary key
+          example: 1
+        customer_id:
+          type: integer
+          description: Reference to customer
+          example: 1
+        lago_sub_id:
+          type: string
+          description: Lago subscription ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        plan_code:
+          type: string
+          description: Plan code
+          example: starter
+        status:
+          type: string
+          description: Subscription status
+          example: active
+          enum: [active, pending, canceled, terminated]
+        started_at:
+          type: string
+          format: date-time
+          description: Subscription start date
+          example: '2026-04-07T10:30:00Z'
+        ended_at:
+          type: string
+          format: date-time
+          description: Subscription end date
+          example: null
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2026-04-07T10:30:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: '2026-04-07T10:30:00Z'
+
+    Invoice:
+      type: object
+      properties:
+        lago_id:
+          type: string
+          description: Lago invoice ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        sequential_id:
+          type: integer
+          description: Sequential invoice number
+          example: 1001
+        status:
+          type: string
+          description: Invoice status
+          example: finalized
+          enum: [draft, finalized, paid, failed, pending]
+        amount_cents:
+          type: integer
+          description: Total amount in cents
+          example: 10000
+        currency:
+          type: string
+          description: Currency code
+          example: USD
+        customer:
+          type: object
+          properties:
+            external_id:
+              type: string
+              example: customer-006
+            name:
+              type: string
+              example: Bluebird Labs
+        issuing_date:
+          type: string
+          format: date
+          description: Invoice issue date
+          example: '2026-04-07'
+        payment_due_date:
+          type: string
+          format: date
+          description: Payment due date
+          example: '2026-04-22'
+
+    Wallet:
+      type: object
+      properties:
+        lago_id:
+          type: string
+          description: Lago wallet ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        balance_cents:
+          type: integer
+          description: Current balance in cents
+          example: 50000
+        credits_balance:
+          type: number
+          format: float
+          description: Balance in credit units
+          example: 500.00
+        currency:
+          type: string
+          description: Currency code
+          example: USD
+        status:
+          type: string
+          description: Wallet status
+          example: active
+          enum: [active, terminated]
+
+    WalletTransaction:
+      type: object
+      properties:
+        lago_id:
+          type: string
+          description: Lago transaction ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        amount_cents:
+          type: integer
+          description: Transaction amount in cents
+          example: 10000
+        credit_amount:
+          type: number
+          format: float
+          description: Credit amount
+          example: 100.00
+        status:
+          type: string
+          description: Transaction status
+          example: settled
+          enum: [pending, settled, failed]
+        transaction_type:
+          type: string
+          description: Transaction type
+          example: inbound
+          enum: [inbound, outbound]
+        settled_at:
+          type: string
+          format: date-time
+          description: Settlement timestamp
+          example: '2026-04-07T10:30:00Z'
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2026-04-07T10:30:00Z'
+
+    AppliedCoupon:
+      type: object
+      properties:
+        lago_id:
+          type: string
+          description: Applied coupon ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        coupon:
+          type: object
+          properties:
+            code:
+              type: string
+              example: WELCOME20
+            name:
+              type: string
+              example: Welcome Discount
+            amount_cents:
+              type: integer
+              example: 2000
+              nullable: true
+            percentage_rate:
+              type: number
+              format: float
+              example: 20.0
+              nullable: true
+        status:
+          type: string
+          description: Coupon status
+          example: active
+          enum: [active, terminated]
+        frequency:
+          type: string
+          description: Application frequency
+          example: once
+          enum: [once, recurring, forever]
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          example: 1
+        next_page:
+          type: integer
+          example: 2
+          nullable: true
+        prev_page:
+          type: integer
+          example: null
+          nullable: true
+        total_pages:
+          type: integer
+          example: 5
+        total_count:
+          type: integer
+          example: 100
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+          example: Missing required fields
+        code:
+          type: integer
+          description: HTTP status code
+          example: 400
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Missing required fields
+            code: 400
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Unauthorized
+            code: 401
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Customer not found
+            code: 404
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: An unexpected error occurred
+            code: 500
