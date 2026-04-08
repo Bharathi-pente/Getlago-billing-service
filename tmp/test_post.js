@@ -1,6 +1,6 @@
 (async () => {
   try {
-    const res = await fetch('http://localhost:4000/api/v1/customers', {
+    const res = await fetch('http://localhost:3000/api/v1/customers', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer billing_internal_secret_key_2024',
