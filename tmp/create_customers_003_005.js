@@ -16,34 +16,6 @@
         }
       },
       plan: { subscription: { external_customer_id: 'customer-003', plan_code: 'starter', billing_time: 'anniversary' } }
-    },
-    {
-      id: 'customer-004',
-      body: {
-        customer: {
-          external_id: 'customer-004',
-          name: 'Enterprise Corp',
-          email: 'billing@enterprisecorp.com',
-          customer_type: 'company',
-          currency: 'USD',
-          timezone: 'Asia/Kolkata'
-        }
-      },
-      plan: { subscription: { external_customer_id: 'customer-004', plan_code: 'enterprise', billing_time: 'anniversary' } }
-    },
-    {
-      id: 'customer-005',
-      body: {
-        customer: {
-          external_id: 'customer-005',
-          name: 'Digital Agency',
-          email: 'finance@digitalagency.com',
-          customer_type: 'company',
-          currency: 'USD',
-          timezone: 'Asia/Kolkata'
-        }
-      },
-      plan: { subscription: { external_customer_id: 'customer-005', plan_code: 'pro', billing_time: 'anniversary' } }
     }
   ];
 
